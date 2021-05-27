@@ -28,7 +28,6 @@ const owner string = `@_**Maren Beam (SP2'19)**`
 // Pairing Bot's owner can add their ID here for testing. ctrl+f "ownerID" to see where it's used
 const ownerID = 215391
 
-const helpMessage string = "**How to use Pairing Bot:**\n* `subscribe` to start getting matched with other Pairing Bot users for pair programming\n* `schedule monday wednesday friday` to set your weekly pairing schedule\n  * In this example, I've been set to find pairing partners for you on every Monday, Wednesday, and Friday\n  * You can schedule pairing for any combination of days in the week\n* `skip tomorrow` to skip pairing tomorrow\n  * This is valid until matches go out at 04:00 UTC\n* `unskip tomorrow` to undo skipping tomorrow\n* `status` to show your current schedule, skip status, and name\n* `unsubscribe` to stop getting matched entirely\n\nIf you've found a bug, please [submit an issue on github](https://github.com/thwidge/pairing-bot/issues)!"
 const subscribeMessage string = "Yay! You're now subscribed to Pairing Bot!\nCurrently, I'm set to find pair programming partners for you on **Mondays**, **Tuesdays**, **Wednesdays**, **Thursdays**, and **Fridays**.\nYou can customize your schedule any time with `schedule` :)"
 const unsubscribeMessage string = "You're unsubscribed!\nI won't find pairing partners for you unless you `subscribe`.\n\nBe well :)"
 const notSubscribedMessage string = "You're not subscribed to Pairing Bot <3"
@@ -283,7 +282,7 @@ func dispatch(ctx context.Context, client *firestore.Client, cmd string, cmdArgs
 		response = fmt.Sprintf("* You're %v\n* You're scheduled for pairing on **%v**\n* **You're%vset to skip** pairing tomorrow", whoami, scheduleStr, skipStr)
 
 	case "help":
-		response = helpMessage
+		response = fmt.Sprintf("**How to use Pairing Bot:**\n* `subscribe` to start getting matched with other Pairing Bot users for pair programming\n* `schedule monday wednesday friday` to set your weekly pairing schedule\n  * In this example, I've been set to find pairing partners for you on every Monday, Wednesday, and Friday\n  * You can schedule pairing for any combination of days in the week\n* `skip tomorrow` to skip pairing tomorrow\n  * This is valid until matches go out at 04:00 UTC\n* `unskip tomorrow` to undo skipping tomorrow\n* `status` to show your current schedule, skip status, and name\n* `unsubscribe` to stop getting matched entirely\n\nIf you've found a bug, please [submit an issue on github](https://github.com/thwidge/pairing-bot/issues)!\n\nThere are currently %v users subscribed to Pairing Bot.", subscriberCount())
 	default:
 		// this won't execute because all input has been sanitized
 		// by parseCmd() and all cases are handled explicitly above
@@ -653,6 +652,31 @@ func endofbatch(w http.ResponseWriter, r *http.Request) {
 		}
 		log.Println(string(respBodyText))
 	}
+}
+
+func subscriberCount() int {
+
+	// setting up database connection
+	ctx := context.Background()
+	client, err := firestore.NewClient(ctx, "pairing-bot-284823")
+	if err != nil {
+		log.Panic(err)
+	}
+	count := 0
+
+	// getting all the recursers, but only to count them
+	iter := client.Collection("recursers").Documents(ctx)
+	for {
+		_, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			log.Panic(err)
+		}
+		count += 1
+	}
+	return count
 }
 
 // this shuffles our recursers.

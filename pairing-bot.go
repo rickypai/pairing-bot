@@ -68,6 +68,12 @@ type botNoResponse struct {
 	Message bool `json:"response_not_required"`
 }
 
+type parsingErr struct{ msg string }
+
+func (e parsingErr) Error() string {
+	return fmt.Sprintf("Error when parsing command: %s", e.msg)
+}
+
 func sanityCheck(ctx context.Context, client *firestore.Client, w http.ResponseWriter, r *http.Request) (incomingJSON, error) {
 	var userReq incomingJSON
 	// Look at the incoming webhook and slurp up the JSON
@@ -410,7 +416,7 @@ func parseCmd(cmdStr string) (string, []string, error) {
 	// if there's a valid command and if there's no arguments
 	case contains(cmdList, cmd[0]) && len(cmd) == 1:
 		if cmd[0] == "schedule" || cmd[0] == "skip" || cmd[0] == "unskip" {
-			err = errors.New("the user issued a command without args, but it required args")
+			err = &parsingErr{"the user issued a command without args, but it reqired args"}
 			return "help", nil, err
 		}
 		return cmd[0], nil, err
@@ -419,7 +425,7 @@ func parseCmd(cmdStr string) (string, []string, error) {
 	case contains(cmdList, cmd[0]) && len(cmd) > 1:
 		switch {
 		case cmd[0] == "subscribe" || cmd[0] == "unsubscribe" || cmd[0] == "help" || cmd[0] == "status" || cmd[0] == "count":
-			err = errors.New("the user issued a command with args, but it disallowed args")
+			err = &parsingErr{"the user issued a command with args, but it disallowed args"}
 			return "help", nil, err
 		case cmd[0] == "skip" && (len(cmd) != 2 || cmd[1] != "tomorrow"):
 			err = errors.New("the user issued SKIP with malformed arguments")
@@ -430,7 +436,7 @@ func parseCmd(cmdStr string) (string, []string, error) {
 		case cmd[0] == "schedule":
 			for _, v := range cmd[1:] {
 				if contains(daysList, v) == false {
-					err = errors.New("the user issued SCHEDULE with malformed arguments")
+					err = &parsingErr{"the user issued SCHEDULE with malformed arguments"}
 					return "help", nil, err
 				}
 			}
@@ -441,7 +447,7 @@ func parseCmd(cmdStr string) (string, []string, error) {
 
 	// if there's not a valid command
 	default:
-		err = errors.New("the user-issued command wasn't valid")
+		err = &parsingErr{"the user-issued command wasn't valid"}
 		return "help", nil, err
 	}
 }

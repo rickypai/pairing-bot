@@ -28,6 +28,7 @@ var tableNoArgs = []struct {
 	{"unsubscribe", "unsubscribe", nil, false},
 	{"unsubscribe tuesday", "help", nil, true},
 	{"help", "help", nil, false},
+	{"Help", "help", nil, false},
 	{"help me", "help", nil, true},
 	{"status", "status", nil, false},
 	{"status me", "help", nil, true},
@@ -113,4 +114,31 @@ func TestParseCmdWithArgs(t *testing.T) {
 	}
 }
 
-// TODO add test for invalid commands
+var tableInvalid = []struct {
+	inputStr   string
+	wantedCmd  string
+	wantedArgs []string
+	expectErr  bool
+}{
+	{"scheduleing monday", "help", nil, true},
+	{"mooh", "help", nil, true},
+}
+
+func TestInvalidCommands(t *testing.T) {
+	for _, tt := range tableInvalid {
+		testname := fmt.Sprintf("\nTesting command %v, expecting %v, %v, and %v\n", tt.inputStr, tt.wantedCmd, tt.wantedArgs, tt.expectErr)
+		t.Run(testname, func(t *testing.T) {
+			gotCmd, gotArgs, gotErr := parseCmd(tt.inputStr)
+			if gotCmd != tt.wantedCmd {
+				t.Errorf("got %v, %v, wanted %v, %v\n", gotCmd, gotArgs, tt.wantedCmd, tt.wantedArgs)
+			}
+			_, ok := gotErr.(*parsingErr)
+
+			if tt.expectErr && !ok {
+				t.Errorf("Expected parsingErr but didn't get one\n")
+			} else if !tt.expectErr && ok {
+				t.Errorf("Got unexpected parsingError\n")
+			}
+		})
+	}
+}

@@ -466,10 +466,10 @@ func parseCmd(cmdStr string) (string, []string, error) {
 			err = &parsingErr{"the user issued a command with args, but it disallowed args"}
 			return "help", nil, err
 		case cmd[0] == "skip" && (len(cmd) != 2 || cmd[1] != "tomorrow"):
-			err = errors.New("the user issued SKIP with malformed arguments")
+			err = &parsingErr{"the user issued SKIP with malformed arguments"}
 			return "help", nil, err
 		case cmd[0] == "unskip" && (len(cmd) != 2 || cmd[1] != "tomorrow"):
-			err = errors.New("the user issued UNSKIP with malformed arguments")
+			err = &parsingErr{"the user issued UNSKIP with malformed arguments"}
 			return "help", nil, err
 		case cmd[0] == "schedule":
 			for _, v := range cmd[1:] {

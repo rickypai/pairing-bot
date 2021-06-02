@@ -5,6 +5,7 @@ import (
 	"testing"
 )
 
+// TODO const rather than var?
 var daysList = map[string]struct{}{
 	"monday":    {},
 	"tuesday":   {},
@@ -14,6 +15,9 @@ var daysList = map[string]struct{}{
 	"saturday":  {},
 	"sunday":    {},
 }
+
+// TODO name test cases? would a different structure/order make more sense?
+// consolidate all test cases into one table?
 
 // due to the difficulties around comparing error return values (and because we don't want to compare error messages),
 // the struct contains expectErr to indicate whether an error is expected, instead of an actual error value

@@ -42,6 +42,55 @@ const zulipAPIURL = "https://recurse.zulipchat.com/api/v1/messages"
 var writeErrorMessage = fmt.Sprintf("Something went sideways while writing to the database. You should probably ping %v", owner)
 var readErrorMessage = fmt.Sprintf("Something went sideways while reading from the database. You should probably ping %v", owner)
 
+/// Firestore client usage:
+//	doc, err := client.Collection("botauth").Doc("token").Get(ctx)
+//  _, err = client.Collection("recursers").Doc(userID).Set(ctx, recurser, firestore.MergeAll)
+//	_, err = client.Collection("recursers").Doc(recurserID).Delete(ctx)
+//	client, err := firestore.NewClient(ctx, "pairing-bot-284823")
+//	iter := client.Collection("recursers").Where("isSkippingTomorrow", "==", false).Where("schedule."+today, "==", true).Documents(ctx)
+
+// is this a mix of mocking and wrapping?
+// this interface doesn't actually mock the methods of firestore.Client
+// we don't know the fields of the firestore.Client struct https://pkg.go.dev/cloud.google.com/go/firestore#Client
+
+type DBClient interface {
+	DBGetSnapshot(ctx context, collection string, docKey string) (*DBDocumentSnapshot, error)
+	DBGetIterator(ctx context, collection string, queries []string) (*DBDocumentIterator, error)
+	DBSet(ctx context, collection string, docKey string, data interface{}, opts []str) (*DBWriteResult, error)
+	DBDelete(ctx context, collection string, docKey string, preconditions []str) (*DBWriteResult, error)
+}
+
+func (client *DBClient) DBGetSnapshot(ctx context, collection string, docKey string) (*DBDocumentSnapshot, error) {
+	//
+}
+
+func (client *DBClient) DBGetIterator(ctx context, collection string, queries []string) (*DBDocumentIterator, error) {
+	//
+}
+
+func (client *DBClient) DBSet(ctx context, collection string, docKey string, data interface{}, opts []str) (*DBWriteResult, error) {
+	//
+}
+
+func (client *DBClient) DBDelete(ctx context, collection string, docKey string, preconditions []str) (*DBWriteResult, error) {
+	//
+}
+
+type DBDocumentSnapshot struct {
+	firestoreData *firestore.DocumentSnapshot
+	testData      string
+}
+
+type DBDocumentIterator struct {
+	firestoreData *firestore.DocumentIterator
+	testData      string
+}
+
+type DBWriteResult struct {
+	firestoreData *firestore.WriteResult
+	testData      string
+}
+
 // This is a struct that gets only what
 // we need from the incoming JSON payload
 type incomingJSON struct {

@@ -42,53 +42,9 @@ const zulipAPIURL = "https://recurse.zulipchat.com/api/v1/messages"
 var writeErrorMessage = fmt.Sprintf("Something went sideways while writing to the database. You should probably ping %v", owner)
 var readErrorMessage = fmt.Sprintf("Something went sideways while reading from the database. You should probably ping %v", owner)
 
-/// Firestore client usage:
-//	doc, err := client.Collection("botauth").Doc("token").Get(ctx)
-//  _, err = client.Collection("recursers").Doc(userID).Set(ctx, recurser, firestore.MergeAll)
-//	_, err = client.Collection("recursers").Doc(recurserID).Delete(ctx)
-//	client, err := firestore.NewClient(ctx, "pairing-bot-284823")
-//	iter := client.Collection("recursers").Where("isSkippingTomorrow", "==", false).Where("schedule."+today, "==", true).Documents(ctx)
-
-// is this a mix of mocking and wrapping?
-// this interface doesn't actually mock the methods of firestore.Client
-// we don't know the fields of the firestore.Client struct https://pkg.go.dev/cloud.google.com/go/firestore#Client
-
-type DBClient interface {
-	DBGetSnapshot(ctx context, collection string, docKey string) (*DBDocumentSnapshot, error)
-	DBGetIterator(ctx context, collection string, queries []string) (*DBDocumentIterator, error)
-	DBSet(ctx context, collection string, docKey string, data interface{}, opts []str) (*DBWriteResult, error)
-	DBDelete(ctx context, collection string, docKey string, preconditions []str) (*DBWriteResult, error)
-}
-
-func (client *DBClient) DBGetSnapshot(ctx context, collection string, docKey string) (*DBDocumentSnapshot, error) {
-	//
-}
-
-func (client *DBClient) DBGetIterator(ctx context, collection string, queries []string) (*DBDocumentIterator, error) {
-	//
-}
-
-func (client *DBClient) DBSet(ctx context, collection string, docKey string, data interface{}, opts []str) (*DBWriteResult, error) {
-	//
-}
-
-func (client *DBClient) DBDelete(ctx context, collection string, docKey string, preconditions []str) (*DBWriteResult, error) {
-	//
-}
-
-type DBDocumentSnapshot struct {
-	firestoreData *firestore.DocumentSnapshot
-	testData      string
-}
-
-type DBDocumentIterator struct {
-	firestoreData *firestore.DocumentIterator
-	testData      string
-}
-
-type DBWriteResult struct {
-	firestoreData *firestore.WriteResult
-	testData      string
+type firestoreClient struct {
+	client *firestore.Client
+	ctx    context.Context
 }
 
 // This is a struct that gets only what
@@ -123,7 +79,7 @@ func (e parsingErr) Error() string {
 	return fmt.Sprintf("Error when parsing command: %s", e.msg)
 }
 
-func sanityCheck(ctx context.Context, client *firestore.Client, w http.ResponseWriter, r *http.Request) (incomingJSON, error) {
+func sanityCheck(c *firestoreClient, w http.ResponseWriter, r *http.Request) (incomingJSON, error) {
 	var userReq incomingJSON
 	// Look at the incoming webhook and slurp up the JSON
 	// Error if the JSON from Zulip istelf is bad
@@ -135,7 +91,7 @@ func sanityCheck(ctx context.Context, client *firestore.Client, w http.ResponseW
 
 	// validate our zulip-bot token
 	// this was manually put into the database before deployment
-	doc, err := client.Collection("botauth").Doc("token").Get(ctx)
+	doc, err := c.client.Collection("botauth").Doc("token").Get(c.ctx)
 	if err != nil {
 		log.Println("Something weird happened trying to read the auth token from the database")
 		return userReq, err
@@ -148,7 +104,7 @@ func sanityCheck(ctx context.Context, client *firestore.Client, w http.ResponseW
 	return userReq, err
 }
 
-func dispatch(ctx context.Context, client *firestore.Client, cmd string, cmdArgs []string, userID string, userEmail string, userName string) (string, error) {
+func dispatch(c *firestoreClient, cmd string, cmdArgs []string, userID string, userEmail string, userName string) (string, error) {
 	var response string
 	var err error
 	var recurser = map[string]interface{}{
@@ -169,7 +125,7 @@ func dispatch(ctx context.Context, client *firestore.Client, cmd string, cmdArgs
 
 	// get the users "document" (database entry) out of firestore
 	// we temporarily keep it in 'doc'
-	doc, err := client.Collection("recursers").Doc(userID).Get(ctx)
+	doc, err := c.client.Collection("recursers").Doc(userID).Get(c.ctx)
 	// this says "if there's an error, and if that error was not document-not-found"
 	if err != nil && grpc.Code(err) != codes.NotFound {
 		response = readErrorMessage
@@ -212,7 +168,7 @@ func dispatch(ctx context.Context, client *firestore.Client, cmd string, cmdArgs
 		}
 		// put it in the database
 		recurser["schedule"] = newSchedule
-		_, err = client.Collection("recursers").Doc(userID).Set(ctx, recurser, firestore.MergeAll)
+		_, err = c.client.Collection("recursers").Doc(userID).Set(c.ctx, recurser, firestore.MergeAll)
 		if err != nil {
 			response = writeErrorMessage
 			break
@@ -243,7 +199,7 @@ func dispatch(ctx context.Context, client *firestore.Client, cmd string, cmdArgs
 				"sunday":    false,
 			},
 		}
-		_, err = client.Collection("recursers").Doc(userID).Set(ctx, recurser)
+		_, err = c.client.Collection("recursers").Doc(userID).Set(c.ctx, recurser)
 		if err != nil {
 			response = writeErrorMessage
 			break
@@ -255,7 +211,7 @@ func dispatch(ctx context.Context, client *firestore.Client, cmd string, cmdArgs
 			response = notSubscribedMessage
 			break
 		}
-		_, err = client.Collection("recursers").Doc(userID).Delete(ctx)
+		_, err = c.client.Collection("recursers").Doc(userID).Delete(c.ctx)
 		if err != nil {
 			response = writeErrorMessage
 			break
@@ -268,7 +224,7 @@ func dispatch(ctx context.Context, client *firestore.Client, cmd string, cmdArgs
 			break
 		}
 		recurser["isSkippingTomorrow"] = true
-		_, err = client.Collection("recursers").Doc(userID).Set(ctx, recurser, firestore.MergeAll)
+		_, err = c.client.Collection("recursers").Doc(userID).Set(c.ctx, recurser, firestore.MergeAll)
 		if err != nil {
 			response = writeErrorMessage
 			break
@@ -281,7 +237,7 @@ func dispatch(ctx context.Context, client *firestore.Client, cmd string, cmdArgs
 			break
 		}
 		recurser["isSkippingTomorrow"] = false
-		_, err = client.Collection("recursers").Doc(userID).Set(ctx, recurser, firestore.MergeAll)
+		_, err = c.client.Collection("recursers").Doc(userID).Set(c.ctx, recurser, firestore.MergeAll)
 		if err != nil {
 			response = writeErrorMessage
 			break
@@ -340,7 +296,7 @@ func dispatch(ctx context.Context, client *firestore.Client, cmd string, cmdArgs
 	case "help":
 		response = helpMessage
 	case "count":
-		response = fmt.Sprintf("There are currently %v users subscribed to Pairing Bot.", subscriberCount())
+		response = fmt.Sprintf("There are currently %v users subscribed to Pairing Bot.", subscriberCount(c))
 	default:
 		// this won't execute because all input has been sanitized
 		// by parseCmd() and all cases are handled explicitly above
@@ -348,15 +304,11 @@ func dispatch(ctx context.Context, client *firestore.Client, cmd string, cmdArgs
 	return response, err
 }
 
-func handle(w http.ResponseWriter, r *http.Request) {
+func (c *firestoreClient) handle(w http.ResponseWriter, r *http.Request) {
 	responder := json.NewEncoder(w)
-	ctx := context.Background()
-	client, err := firestore.NewClient(ctx, "pairing-bot-284823")
-	if err != nil {
-		log.Panic(err)
-	}
+
 	// sanity check the incoming request
-	userReq, err := sanityCheck(ctx, client, w, r)
+	userReq, err := sanityCheck(c, w, r)
 	if err != nil {
 		log.Println(err)
 		return
@@ -398,7 +350,7 @@ func handle(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 	}
 	// the tofu and potatoes right here y'all
-	response, err := dispatch(ctx, client, cmd, cmdArgs, strconv.Itoa(userReq.Message.SenderID), userReq.Message.SenderEmail, userReq.Message.SenderFullName)
+	response, err := dispatch(c, cmd, cmdArgs, strconv.Itoa(userReq.Message.SenderID), userReq.Message.SenderEmail, userReq.Message.SenderFullName)
 	if err != nil {
 		log.Println(err)
 	}
@@ -410,10 +362,23 @@ func handle(w http.ResponseWriter, r *http.Request) {
 
 // It's alive! The application starts here.
 func main() {
+
+	// setting up database connection
+	ctx := context.Background()
+	client, err := firestore.NewClient(ctx, "pairing-bot-284823")
+	if err != nil {
+		log.Panic(err)
+	}
+	defer client.Close()
+
+	fc := &firestoreClient{client: client, ctx: ctx}
+
+	// Use a method on a struct for the handler, and set global state there?
+
 	http.HandleFunc("/", nope)
-	http.HandleFunc("/webhooks", handle)
-	http.HandleFunc("/match", match)
-	http.HandleFunc("/endofbatch", endofbatch)
+	http.HandleFunc("/webhooks", fc.handle)
+	http.HandleFunc("/match", fc.match)
+	http.HandleFunc("/endofbatch", fc.endofbatch)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -516,7 +481,7 @@ func nope(w http.ResponseWriter, r *http.Request) {
 
 // "match" makes matches for pairing, and messages those people to notify them of their match
 // it runs once per day at 8am (it's triggered with app engine's cron service)
-func match(w http.ResponseWriter, r *http.Request) {
+func (c *firestoreClient) match(w http.ResponseWriter, r *http.Request) {
 	// Check that the request is originating from within app engine
 	// https://cloud.google.com/appengine/docs/flexible/go/scheduling-jobs-with-cron-yaml#validating_cron_requests
 	if r.Header.Get("X-Appengine-Cron") != "true" {
@@ -524,12 +489,6 @@ func match(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// setting up database connection
-	ctx := context.Background()
-	client, err := firestore.NewClient(ctx, "pairing-bot-284823")
-	if err != nil {
-		log.Panic(err)
-	}
 	var recursersList []map[string]interface{}
 	var skippersList []map[string]interface{}
 	// this gets the time from system time, which is UTC
@@ -542,7 +501,7 @@ func match(w http.ResponseWriter, r *http.Request) {
 	// this query returns an iterator, and then we have to use firestore
 	// magic to iterate across the results of the query and store them
 	// into our 'recursersList' variable which is a slice of map[string]interface{}
-	iter := client.Collection("recursers").Where("isSkippingTomorrow", "==", false).Where("schedule."+today, "==", true).Documents(ctx)
+	iter := c.client.Collection("recursers").Where("isSkippingTomorrow", "==", false).Where("schedule."+today, "==", true).Documents(c.ctx)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -555,7 +514,7 @@ func match(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// get everyone who was set to skip today and set them back to isSkippingTomorrow = false
-	iter = client.Collection("recursers").Where("isSkippingTomorrow", "==", true).Documents(ctx)
+	iter = c.client.Collection("recursers").Where("isSkippingTomorrow", "==", true).Documents(c.ctx)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -568,7 +527,7 @@ func match(w http.ResponseWriter, r *http.Request) {
 	}
 	for i := range skippersList {
 		skippersList[i]["isSkippingTomorrow"] = false
-		_, err = client.Collection("recursers").Doc(skippersList[i]["id"].(string)).Set(ctx, skippersList[i], firestore.MergeAll)
+		_, err := c.client.Collection("recursers").Doc(skippersList[i]["id"].(string)).Set(c.ctx, skippersList[i], firestore.MergeAll)
 		if err != nil {
 			log.Println(err)
 		}
@@ -584,7 +543,7 @@ func match(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// message the peeps!
-	doc, err := client.Collection("apiauth").Doc("key").Get(ctx)
+	doc, err := c.client.Collection("apiauth").Doc("key").Get(c.ctx)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -640,7 +599,7 @@ func match(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func endofbatch(w http.ResponseWriter, r *http.Request) {
+func (c *firestoreClient) endofbatch(w http.ResponseWriter, r *http.Request) {
 	// Check that the request is originating from within app engine
 	// https://cloud.google.com/appengine/docs/flexible/go/scheduling-jobs-with-cron-yaml#validating_cron_requests
 	if r.Header.Get("X-Appengine-Cron") != "true" {
@@ -648,16 +607,10 @@ func endofbatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// setting up database connection
-	ctx := context.Background()
-	client, err := firestore.NewClient(ctx, "pairing-bot-284823")
-	if err != nil {
-		log.Panic(err)
-	}
 	var recursersList []map[string]interface{}
 
 	// getting all the recursers
-	iter := client.Collection("recursers").Documents(ctx)
+	iter := c.client.Collection("recursers").Documents(c.ctx)
 	for {
 		doc, err := iter.Next()
 		if err == iterator.Done {
@@ -670,7 +623,7 @@ func endofbatch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// message and offboard everyone (delete them from the database)
-	doc, err := client.Collection("apiauth").Doc("key").Get(ctx)
+	doc, err := c.client.Collection("apiauth").Doc("key").Get(c.ctx)
 	if err != nil {
 		log.Panic(err)
 	}
@@ -685,7 +638,7 @@ func endofbatch(w http.ResponseWriter, r *http.Request) {
 		messageRequest := url.Values{}
 		var message string
 
-		_, err = client.Collection("recursers").Doc(recurserID).Delete(ctx)
+		_, err = c.client.Collection("recursers").Doc(recurserID).Delete(c.ctx)
 		if err != nil {
 			log.Println(err)
 			message = fmt.Sprintf("Uh oh, I was trying to offboard you since it's the end of batch, but something went wrong. Consider messaging %v to let them know this happened.", owner)
@@ -713,18 +666,11 @@ func endofbatch(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func subscriberCount() int {
-
-	// setting up database connection
-	ctx := context.Background()
-	client, err := firestore.NewClient(ctx, "pairing-bot-284823")
-	if err != nil {
-		log.Panic(err)
-	}
+func subscriberCount(c *firestoreClient) int {
 
 	// getting all the recursers, but only to count them
 	count := 0
-	iter := client.Collection("recursers").Documents(ctx)
+	iter := c.client.Collection("recursers").Documents(c.ctx)
 	for {
 		_, err := iter.Next()
 		if err == iterator.Done {

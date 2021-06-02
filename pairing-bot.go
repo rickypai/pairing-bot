@@ -42,9 +42,33 @@ const zulipAPIURL = "https://recurse.zulipchat.com/api/v1/messages"
 var writeErrorMessage = fmt.Sprintf("Something went sideways while writing to the database. You should probably ping %v", owner)
 var readErrorMessage = fmt.Sprintf("Something went sideways while reading from the database. You should probably ping %v", owner)
 
+type DBClient interface {
+	DBGetSnapshot(collection string, docKey string) (*firestore.DocumentSnapshot, error)
+	DBGetIterator(collection string, queries []string) (*firestore.DocumentIterator, error)
+	DBSet(collection string, docKey string, data interface{}, opts []string) (*firestore.WriteResult, error)
+	DBDelete(collection string, docKey string, preconditions []string) (*firestore.WriteResult, error)
+}
+
+// firestoreClient implements DBClient
 type firestoreClient struct {
 	client *firestore.Client
 	ctx    context.Context
+}
+
+func (fc *firestoreClient) DBGetSnapshot(collection string, docKey string) (*firestore.DocumentSnapshot, error) {
+	return nil, nil
+}
+
+func (fc *firestoreClient) DBGetIterator(collection string, queries []string) (*firestore.DocumentIterator, error) {
+	return nil, nil
+}
+
+func (fc *firestoreClient) DBSet(collection string, docKey string, data interface{}, opts []string) (*firestore.WriteResult, error) {
+	return nil, nil
+}
+
+func (fc *firestoreClient) DBDelete(collection string, docKey string, preconditions []string) (*firestore.WriteResult, error) {
+	return nil, nil
 }
 
 // This is a struct that gets only what

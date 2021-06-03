@@ -21,7 +21,11 @@ func main() {
 	}
 	defer client.Close()
 
-	fc := &firestoreClient{client: client, ctx: ctx}
+	fc := &firestoreClient{
+		client:    client,
+		ctx:       ctx,
+		apiAuthDB: &FirestoreAPIAuthDB{client},
+	}
 
 	// Use a method on a struct for the handler, and set global state there?
 

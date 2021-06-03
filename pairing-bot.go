@@ -49,8 +49,9 @@ type DBClient interface {
 
 // firestoreClient implements DBClient
 type firestoreClient struct {
-	client *firestore.Client
-	ctx    context.Context
+	client    *firestore.Client
+	apiAuthDB APIAuthDB
+	ctx       context.Context
 }
 
 func (fc *firestoreClient) DBGetSnapshot(collection string, docKey string) (*firestore.DocumentSnapshot, error) {
@@ -113,13 +114,12 @@ func sanityCheck(c *firestoreClient, w http.ResponseWriter, r *http.Request) (in
 
 	// validate our zulip-bot token
 	// this was manually put into the database before deployment
-	doc, err := c.client.Collection("botauth").Doc("token").Get(c.ctx)
+	apiKey, err := c.apiAuthDB.GetAPIAuthKey(r.Context())
 	if err != nil {
 		log.Println("Something weird happened trying to read the auth token from the database")
 		return userReq, err
 	}
-	token := doc.Data()
-	if userReq.Token != token["value"] {
+	if userReq.Token != apiKey {
 		http.NotFound(w, r)
 		return userReq, errors.New("unauthorized interaction attempt")
 	}
